@@ -1,0 +1,50 @@
+# Builds the router data for all of Türkiye on a GitHub runner (build.sh: osrm-extract needs more memory than Akış's
+# 2 GB server has) and hands it to the server, whose install script (the forced command of the OSRM_SSH_KEY key) serves
+# it and keeps the previous data unless the new router answers. Runs on demand, and when the build changes.
+# Secrets: OSRM_SSH_KEY, DEPLOY_KNOWN_HOSTS. The scripts' source of truth is backend/host/osrm in Akış's repository.
+name: Router data
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - build.sh
+      - motorways.mjs
+      - .github/workflows/osrm.yml
+
+concurrency:
+  group: router-data
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Memory and tools
+        # osrm-extract on Türkiye may peak above the runner's RAM: swap on the larger /mnt disk.
+        run: |
+          free -g; df -h / /mnt
+          sudo fallocate -l 24G /mnt/swap && sudo chmod 600 /mnt/swap && sudo mkswap /mnt/swap && sudo swapon /mnt/swap
+          sudo apt-get install -y -q osmium-tool zstd
+
+      - name: Build
+        run: sudo WORK=/mnt bash build.sh /mnt/out
+
+      - name: Install on the server
+        env:
+          OSRM_SSH_KEY: ${{ secrets.OSRM_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$OSRM_SSH_KEY" > ~/.ssh/osrm_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/osrm_key
+          cd /mnt/out
+          sudo tar --zstd -cf - $(ls) | ssh -i ~/.ssh/osrm_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 root@2.31.13.235
