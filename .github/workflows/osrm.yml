@@ -1,6 +1,7 @@
 # Builds the router data for all of Türkiye on a GitHub runner (build.sh: osrm-extract needs more memory than Akış's
 # 2 GB server has) and hands it to the server, whose install script (the forced command of the OSRM_SSH_KEY key) serves
-# it and keeps the previous data unless the new router answers. Runs on demand, and when the build changes.
+# it and keeps the previous data unless the new router answers. Also exports the motorway points, speed limits and
+# speed cameras, with the scripts that load them. Runs on demand, and when the build or one of its files changes.
 # Secrets: OSRM_SSH_KEY, DEPLOY_KNOWN_HOSTS. The scripts' source of truth is backend/host/osrm in Akış's repository.
 name: Router data
 
@@ -10,7 +11,10 @@ on:
     branches: [main]
     paths:
       - build.sh
+      - closed-ways.txt
       - motorways.mjs
+      - speedlimits.mjs
+      - speedcameras.mjs
       - .github/workflows/osrm.yml
 
 concurrency:

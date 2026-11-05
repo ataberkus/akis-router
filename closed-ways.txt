@@ -1,0 +1,7 @@
+# Roads closed in reality that OpenStreetMap still has open. build.sh makes the car profile drop these ways, so no route
+# takes them. One OpenStreetMap way id per line; `#` starts a comment. Remove a line once OpenStreetMap closes the road
+# itself and a build has run on that data (https://www.openstreetmap.org/way/<id> shows its tags).
+
+# Çayırova: the Yumrukaya/Çayırova service area's back road to Rahmi Dibek Caddesi, closed for good (2026-11).
+1162854219
+228435222
