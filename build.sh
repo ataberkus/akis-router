@@ -6,9 +6,9 @@
 #
 # Usage: bash build.sh <out-dir>     (needs Docker, osmium-tool and ~15 GB of free disk next to $WORK, default /var/tmp)
 # Output in <out-dir>: akis.osrm.* (the router data), motorways.geojsonseq (osmium export of every highway=motorway
-# way), speedlimits.opl (every way tagged maxspeed, maxspeed:forward or maxspeed:backward, with its node ids),
-# speedcameras.opl (every highway=speed_camera node and the roads it is a vertex of) and the scripts that load them,
-# motorways.mjs, speedlimits.mjs and speedcameras.mjs (install.sh runs them). closed-ways.txt, next to this script,
+# way), speedlimits.opl (every way tagged maxspeed, maxspeed:forward or maxspeed:backward, with its node ids) and
+# speedcameras.opl (every highway=speed_camera node and the roads it is a vertex of): data only, install.sh refuses
+# anything else; the scripts that load these into the API live on the VPS. closed-ways.txt, next to this script,
 # lists ways the car profile drops: roads closed in reality that OpenStreetMap still has open.
 # Data: © OpenStreetMap contributors, ODbL 1.0 (https://www.openstreetmap.org/copyright), via Geofabrik.
 set -euo pipefail
@@ -21,7 +21,11 @@ out=$(cd "$out" && pwd)
 work=$(mktemp -d -p "${WORK:-/var/tmp}" akis-osrm.XXXXXX)
 trap 'rm -rf "$work"' EXIT
 
+# The extract, checked against the MD5 Geofabrik publishes beside it (curl -f: an HTTP error fails the build).
 curl -fsSL -o "$work/akis.osm.pbf" https://download.geofabrik.de/europe/turkey-latest.osm.pbf
+md5=$(curl -fsSL https://download.geofabrik.de/europe/turkey-latest.osm.pbf.md5 | awk 'NR == 1 { print $1 }')
+[[ $md5 =~ ^[0-9a-f]{32}$ ]] || { echo "no MD5 published for the extract" >&2; exit 1; }
+echo "$md5  $work/akis.osm.pbf" | md5sum -c --quiet -
 
 # The stock car profile, with every combination of toll/motorway/ferry excludable (the app may avoid several at once).
 docker pull -q "$IMAGE"
@@ -54,5 +58,4 @@ osmium cat "$work/camera-roads.osm.pbf" -f opl,add_metadata=false -o "$work/spee
 rm -f "$out"/akis.osrm* "$out/motorways.geojsonseq" "$out/motorways.mjs" "$out/speedlimits.opl" "$out/speedlimits.mjs" \
   "$out/speedcameras.opl" "$out/speedcameras.mjs"
 mv "$work"/akis.osrm* "$work/motorways.geojsonseq" "$work/speedlimits.opl" "$work/speedcameras.opl" "$out/"
-cp "$here/motorways.mjs" "$here/speedlimits.mjs" "$here/speedcameras.mjs" "$out/"
 du -sh "$out"
