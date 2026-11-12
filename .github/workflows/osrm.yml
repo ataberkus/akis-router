@@ -49,4 +49,4 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/osrm_key
           cd /mnt/out
-          sudo tar --zstd -cf - $(ls) | ssh -i ~/.ssh/osrm_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 root@2.31.13.235
+          sudo tar --zstd -cf - $(ls) | ssh -i ~/.ssh/osrm_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 root@154.193.0.62
