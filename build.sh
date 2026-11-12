@@ -32,6 +32,16 @@ docker pull -q "$IMAGE"
 docker run --rm "$IMAGE" cat /opt/car.lua > "$work/akis-car.lua"
 perl -0pi -e "s/excludable = Sequence \{.*?\n    \},/excludable = Sequence {\n        Set {'toll'},\n        Set {'motorway'},\n        Set {'ferry'},\n        Set {'toll', 'motorway'},\n        Set {'toll', 'ferry'},\n        Set {'motorway', 'ferry'},\n        Set {'toll', 'motorway', 'ferry'}\n    },/s" "$work/akis-car.lua"
 grep -q "Set {'toll', 'motorway', 'ferry'}" "$work/akis-car.lua"
+# A traffic signal costs 15 s, the average wait at a city light, not the stock 2 s: otherwise a slip road that
+# bypasses the light (30 km/h, a give-way) loses to driving through it and turning there.
+perl -0pi -e "s/^(      u_turn_penalty\s*= 20,\n)/\$1      traffic_signal_penalty         = 15,\n/m" "$work/akis-car.lua"
+grep -q "traffic_signal_penalty         = 15," "$work/akis-car.lua"
+# Slip roads (highway=*_link) carry the class `link`: the API says entering one from a road as an exit, which OSRM
+# does only for motorway and trunk slip roads (services/osrm.ts, OsrmStep.type).
+perl -0pi -e "s/'toll', 'motorway', 'ferry', 'restricted', 'tunnel'\n/'toll', 'motorway', 'ferry', 'restricted', 'tunnel', 'link'\n/" "$work/akis-car.lua"
+perl -0pi -e "s/^(  WayHandlers\.run\(profile, way, result, data, handlers, relations\)\n)/\$1  if data.highway and data.highway:sub(-5) == '_link' then\n    result.forward_classes['link'] = true\n    result.backward_classes['link'] = true\n  end\n/m" "$work/akis-car.lua"
+grep -q "'tunnel', 'link'" "$work/akis-car.lua"
+grep -q "result.forward_classes\['link'\] = true" "$work/akis-car.lua"
 # Roads closed in reality that OpenStreetMap still has open: process_way returns before routing them.
 closed=$(awk '{ sub(/\r$/, ""); sub(/#.*/, "") } $1 ~ /^[0-9]+$/ { printf "%s[%s]=true", n++ ? "," : "", $1 }' "$here/closed-ways.txt")
 perl -0pi -e "s/^(function process_way\(profile, way, result, relations\)\n)/local akis_closed_ways = {$closed}\n\$1  if akis_closed_ways[way:id()] then return end\n/m" "$work/akis-car.lua"
